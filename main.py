@@ -16,15 +16,7 @@ def parse_roles(input_string, search_tool):
   main = [
     Agent(role=match[0], goal=match[1], backstory=match[2], verbose=True, allow_delegation=True, tools=[search_tool]) 
     for match in matches]
-  extra = [{
-    'role': match[0],
-    'goal': match[1], 
-    'backstory': match[2],
-    } for match in matches]
-  return {
-    'main': main,
-    'extra': extra
-    }
+  return main
 
 async def parse_tasks(input_string, choices, agents):
   pattern = r'"description":\s*"(.*?)",\s*"agent":\s*"(.*?)"'
@@ -48,16 +40,7 @@ async def parse_tasks(input_string, choices, agents):
     Task(description=task['description'], agent=task['agent']) 
     for task in agentList
   ]
-  extra = [
-    {
-      'description': match[0],
-      'agent': match[1], 
-    } for match in matches
-  ]
-  return {
-    'main': main,
-    'extra': extra
-  }
+  return main
 
 # Begin Setup
 
@@ -100,10 +83,10 @@ async def main():
   )
   task1_response = task1_Crew.kickoff()
   teamMates = parse_roles(task1_response, search_tool)
-  teamMates_Extra = json.dumps(teamMates['extra'])
+  teamMates_string = json.dumps([{'role': member.role, 'goal': member.goal, 'backstory': member.backstory} for member in teamMates])
 
   task2 = Task(
-      description="""(((""" + teamMates_Extra +"""))) Consider (((this team))). Imagine the ideal sequential task list that maximizes their contribution to """ + goal + """. Each task 
+      description="""(((""" + teamMates_string +"""))) Consider (((this team))). Imagine the ideal sequential task list that maximizes their contribution to """ + goal + """. Each task 
       return const format = """ + taskFormat,
       agent=imagineer
   )
@@ -111,11 +94,11 @@ async def main():
   task2_Crew.tasks = [task2]
   task2_response = task2_Crew.kickoff()
 
-  choices = [ member.role for member in teamMates['main']]
-  teamTasks = await parse_tasks(input_string=task2_response, choices=choices, agents=teamMates['main'])
+  choices = [ member.role for member in teamMates]
+  teamTasks = await parse_tasks(input_string=task2_response, choices=choices, agents=teamMates)
   task3_Crew = Crew(
-     agents=[member for member in teamMates['main']],
-     tasks=teamTasks['main'],
+     agents=[member for member in teamMates],
+     tasks=teamTasks,
      verbose=2,
      process=Process.sequential
   )
